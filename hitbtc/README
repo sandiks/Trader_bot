@@ -1,0 +1,12 @@
+
+-u ":"
+
+----public
+curl -X GET "https://api.hitbtc.com/api/2/public/trades/ETHUSD?sort=DESC&by=timestamp&limit=100" -H "accept: application/json"
+curl -X GET "https://api.hitbtc.com/api/2/public/orderbook/ETHUSD?limit=100" -H "accept: application/json"
+curl -X GET "https://api.hitbtc.com/api/2/public/currency" -H "accept: application/json"
+curl -X GET "https://api.hitbtc.com/api/2/public/symbol" -H "accept: application/json"
+curl -X GET "https://api.hitbtc.com/api/2/public/ticker" -H "accept: application/json"
+
+----history
+curl -u "" -X GET "https://api.hitbtc.com/api/2/history/trades?symbol=ETHUSD&sort=DESC&by=timestamp&limit=100" -H "accept: application/json"
