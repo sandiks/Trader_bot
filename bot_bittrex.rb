@@ -37,23 +37,28 @@ end
 @played=false
 
 def play_sound
-  return
- `cvlc '../alarm.mp3'`
+ # `cvlc '../alarm.mp3'`
+ `sudo beep -f 600 -l 1000 -r 2`
 end
 
-def sell_order(pair,bid,ask)
-  return if pair=="BTC-ETH"
-
+def find_last_order(pair)
   from = date_now(72)
 
   hist_orders = DB[:my_hst_orders].filter( Sequel.lit("(pid=? and Exchange=? and Closed > ? )", get_profile, pair, from) ).reverse_order(:Closed).all
   last_orders = find_last_hist_order_not_sold(hist_orders) 
   ord = last_orders.first
-
   unless ord
     ord = hist_orders.select{|ord| ord[:OrderType]=='LIMIT_BUY'}.first
   end
+  ord  
+end
+
+def sell_order(pair,bid,ask)
+  return if pair=="BTC-ETH"
   
+  ord = find_last_order(pair)
+  p "no order #{pair}" unless ord
+
   if ord && ord[:PricePerUnit] && ord[:OrderType]=='LIMIT_BUY'
     
     finished = DB[:bot_trading].first(ord_uuid: ord[:OrderUuid],finished:1)
@@ -67,49 +72,50 @@ def sell_order(pair,bid,ask)
     #diff = bid/center_price*100
     
     diff = bid/ppu*100
-    p "[sell] #{pair.ljust(10,' ')} [factor] #{factor}  [diff]#{'%7.1f' % diff}  [bid,ask] #{'%0.8f' % bid} #{'%0.8f' % ask}"
+    ask_bid_diff = ask/bid*100
+
+    p "[sell] #{pair.ljust(10,' ')} [factor,diff] #{factor} #{'%7.1f' % diff}  [bid, ask, diff] #{'%0.8f' % bid} #{'%0.8f' % ask} #{'%7.1f' % ask_bid_diff}"
     
-    if !@played && (diff>105 || diff< 95)
+    if (diff< 98 && ask_bid_diff<100.5) || diff>factor 
       play_sound 
-      @played = true
     end
     
     uuid=nil
-    if diff>factor
+    if false && diff>factor
 
       #play_sound unless @played
       #@played = true
       
-      if false
-      
-        #uuid=TradeUtil.sell_curr(pair, q, bid)
-        if !finished
-          p "SOLD bid #{'%0.8f' % bid} diff #{'%0.8f' % diff} closed #{ord[:Closed].strftime("%F %k:%M ")}"
-          #DB[:bot_trading].insert(ord_uuid: ord[:OrderUuid], name:pair, ppu:ppu, quant:q, bought_at: ord[:Closed],  s_ppu:bid, bot_sold_at:date_now, finished:1)
-        end
+      #uuid=TradeUtil.sell_curr(pair, q, bid)
+      if !finished
+        p "SOLD bid #{'%0.8f' % bid} diff #{'%0.8f' % diff} closed #{ord[:Closed].strftime("%F %k:%M ")}"
+        DB[:bot_trading].insert(ord_uuid: ord[:OrderUuid], name:pair, ppu:ppu, quant:q, bought_at: ord[:Closed],  s_ppu:bid, bot_sold_at:date_now, finished:1)
       end
-
     end
+
   end
+
 end
 
 def choice_order_and_sell(pairs)
     pairs.each do |pair|
       #next if pair!='DNT'
      
-        if pair=="BTC"
-          TradeUtil.get_bid_ask("USDT-BTC")
-        else
+        if pair!="BTC"
+
           pair="BTC-#{pair}" if !pair.start_with?("BTC-") 
-          bid,ask = TradeUtil.get_bid_ask(pair)
-          
-          #p "(tick) #{pair.ljust(14,' ')} #{'%0.8f ' % bid} #{'%0.8f ' % ask}"
+          bid,ask = TradeUtil.get_bid_ask_from_tick(pair)
           if bid 
             sell_order(pair,bid,ask)
           end
-          sleep 0.1
+          sleep 0.3
         end
     end
+end
+
+def check_and_sell_orders
+      balance_pairs = TradeUtil.get_balance.sort_by{|k,v| v[:usdt]}.map { |k,v| k   }
+      choice_order_and_sell(balance_pairs)  
 end
 
 def update_bittrex_tickers
@@ -128,11 +134,6 @@ def update_bittrex_tickers
       #choice_order_and_sell(balance_pairs)  
 end
 
-def check_and_sell_orders
-      balance_pairs = TradeUtil.get_balance.sort_by{|k,v| v[:usdt]}.map { |k,v| k   }
-      choice_order_and_sell(balance_pairs)  
-end
-
 def update_simulator_tickers_without_balance(exclude_pairs)
 
     simul_curr =  DB[:simul_trades].filter(pid:get_profile).all
@@ -146,6 +147,7 @@ def update_simulator_tickers_without_balance(exclude_pairs)
     end
 
 end
+
 def update_simulator_tickers
       balance_pairs = TradeUtil.get_balance.sort_by{|k,v| v[:usdt]}.map { |k,v| k   }
       update_simulator_tickers_without_balance(balance_pairs)

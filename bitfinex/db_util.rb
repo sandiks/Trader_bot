@@ -11,6 +11,14 @@ class BitfinexDB
     DB[:symbols].to_hash(:name, :symbol_id)
   end
 
+  def self.base_curr
+     "ETH"
+  end
+  
+  def self.get_all_bid_ask
+    DB[:my_ticks].to_hash(:symb,[:BID,:ASK])
+  end
+
   def self.save_tick_to_db(symb_id, tt)
 
     DB[:my_ticks].filter(symb:symb_id).delete
@@ -46,4 +54,32 @@ class BitfinexDB
       DB[:wallets].insert({pid:2, type:ww[0],currency:ww[1], balance:ww[2], available:ww[4] })
     end
   end   
+
+
+
+  def self.get_balance
+
+    data = DB[:wallets].filter(pid:2).all   
+    
+    rates = BitfinexDB.get_all_bid_ask 
+    symbols=BitfinexDB.symb_hash
+    usd_bid = rates[symbols["#{base_curr}USD"]][0]
+
+    res=[]     
+    data.each do |dd|
+
+      curr=dd[:currency].upcase
+      
+      balance=dd[:balance]
+      bid=ask=1
+      if curr!=base_curr
+        sid = symbols["#{curr}#{base_curr}"]
+        bid,ask =rates[sid] 
+      end
+      usd_bal = balance*bid*usd_bid rescue 0
+      #p " curr #{curr} bal #{balance} usd_bid #{usd_bid} bid #{bid}"
+      res<<{currency:curr,bid:bid,ask:ask,balance:balance,usd_balance:usd_bal}
+    end
+    res
+  end    
 end

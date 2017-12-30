@@ -44,8 +44,15 @@ class TradeUtil
     else
       [1,1]
     end
-
   end
+
+  def self.get_bid_ask_from_tick(curr) 
+    mname = curr
+    mname = "BTC-#{curr}" if !curr.start_with?("BTC-")
+    
+    dd = DB[:my_ticks].first(name:mname)
+    [dd[:bid],dd[:ask]]
+  end    
 
   def self.get_curr_balance(sym)
 

@@ -1,6 +1,6 @@
 require 'dotenv'
 require 'bitfinex-rb'
-require_relative 'db_util'
+require_relative 'bitfinex/db_util'
 
 Dotenv.load('.env')
 
@@ -15,6 +15,25 @@ Bitfinex::Client.configure do |conf|
   conf.use_api_v2
 end
 
+def base_curr
+ "ETH"
+end
+
+def get_pairs
+    #["tEOSETH","tBTCUSD","tETHUSD","tNEOETH","tOMGETH"]
+
+    curr=BitfinexDB.get_balance.map do |dd| 
+      curr=dd[:currency]
+      if curr==base_curr
+        "t#{base_curr}USD"
+      else
+        "t#{curr}#{base_curr}"
+      end
+    end
+    curr<<"tBTCUSD"
+    curr
+end
+
 
 def update_bitfinex_tickers
 
@@ -22,7 +41,8 @@ def update_bitfinex_tickers
 
     symbols_id=BitfinexDB.symb_hash
     
-    symbols = ["tEOSETH","tBTCUSD","tETHUSD","tNEOBTC","tLTCBTC"]
+    #symbols = ["tEOSETH","tBTCUSD","tETHUSD","tNEOBTC","tLTCBTC"]
+    symbols = get_pairs
     
     #p "---bitfinex tickers #{symbols}"
     dd = client.ticker(*symbols)
