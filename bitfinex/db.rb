@@ -6,7 +6,11 @@ class BitfinexDB
   PID=2
 
   def self.date_now(hours=0); DateTime.now.new_offset(0/24.0)- hours/(24.0) ; end
-
+  
+  def self.get_db
+    Sequel.connect(adapter: 'mysql2', host: 'localhost', database: 'bitfinex', user: 'root')
+  end
+  
   def self.symb_hash
     DB[:symbols].to_hash(:name, :symbol_id)
   end
@@ -15,10 +19,14 @@ class BitfinexDB
      "ETH"
   end
   
+  def self.get_bid_ask_from_tick(symb_id)
+    DB[:my_ticks].filter(symb:symb_id).select_map([:bid,:ask]).first
+  end
+  
   def self.get_all_bid_ask
     DB[:my_ticks].to_hash(:symb,[:BID,:ASK])
   end
-
+  
   def self.save_tick_to_db(symb_id, tt)
 
     DB[:my_ticks].filter(symb:symb_id).delete
@@ -55,7 +63,14 @@ class BitfinexDB
     end
   end   
 
+  def self.get_last_order(symb) #need show open orders
+    last = DB[:mytrades].filter(fee_currency:symb.sub('ETH','')).reverse_order(:timestamp).limit(1).all
+  end
 
+  def self.get_wallet_curr #need show open orders
+    currs = DB[:wallets].all
+    currs.select{|x| x[:balance]>0}.map{|x| "t#{x[:currency].upcase}ETH"}
+  end  
 
   def self.get_balance
 
@@ -81,5 +96,33 @@ class BitfinexDB
       res<<{currency:curr,bid:bid,ask:ask,balance:balance,usd_balance:usd_bal}
     end
     res
-  end    
+  end   
+
+  def self.save_mytrades(data) #need show open orders
+    
+    DB.transaction do
+      #DB.run("truncate table mytrades")
+      exist=DB[:mytrades].select_map(:tid)
+      
+      data.each do |tr|
+        if !exist.include?(tr['tid'].to_i)
+          
+          tr['timestamp']=Time.at( tr['timestamp'].to_i )  
+          DB[:mytrades].insert(tr)
+        end
+      end
+
+    end
+
+  end  
+
+  def self.save_wallet(wallet) #need show open orders
+
+    DB[:wallets].delete
+    wallet.each do |ww|
+      #DB[:wallets].insert({pid:2, type:ww[0],currency:ww[1], balance:ww[2], available:ww[4] })
+      p "--insert wallet"
+      DB[:wallets].insert({pid:2, type:ww['type'],currency:ww['currency'], balance:ww['amount'], available:ww['available'] })
+    end
+  end   
 end

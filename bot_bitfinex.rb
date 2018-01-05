@@ -1,6 +1,6 @@
 require 'dotenv'
 require 'bitfinex-rb'
-require_relative 'bitfinex/db_util'
+require_relative 'bitfinex/db'
 
 Dotenv.load('.env')
 
@@ -13,24 +13,26 @@ Bitfinex::Client.configure do |conf|
   conf.secret = API_SECRET
   conf.api_key = API_KEY
   conf.use_api_v2
+
 end
 
 def base_curr
  "ETH"
 end
 
+def use_v2
+
+  Bitfinex::Client.configure do |conf|
+    conf.use_api_v2
+  end  
+end
+
 def get_pairs
     #["tEOSETH","tBTCUSD","tETHUSD","tNEOETH","tOMGETH"]
 
-    curr=BitfinexDB.get_balance.map do |dd| 
-      curr=dd[:currency]
-      if curr==base_curr
-        "t#{base_curr}USD"
-      else
-        "t#{curr}#{base_curr}"
-      end
-    end
-    curr<<"tBTCUSD"
+    curr = BitfinexDB.get_wallet_curr 
+    curr.delete("tETHETH")
+    curr+=["tETHUSD","tBTCUSD"]
     curr
 end
 
@@ -38,30 +40,39 @@ end
 def update_bitfinex_tickers
 
     client = Bitfinex::Client.new
-
+    #use_v2
+    
     symbols_id=BitfinexDB.symb_hash
     
-    #symbols = ["tEOSETH","tBTCUSD","tETHUSD","tNEOBTC","tLTCBTC"]
     symbols = get_pairs
     
-    #p "---bitfinex tickers #{symbols}"
-    dd = client.ticker(*symbols)
-
-    dd.each do |tt|
+    tickers = client.ticker(*symbols)
+    
+    out=[]
+    tickers.each do |tt|
 
         symb=tt.shift
-        sid = symbols_id[symb.sub('t','')]
+        v1name = symb.sub('t','')
+        sid = symbols_id[v1name]
+
         BitfinexDB.save_tick_to_db(sid,tt)
         BitfinexDB.save_to_rates(sid,tt)
 
-        p "[bitfinex] #{symb}(#{sid}) bid %0.8f  ask %0.8f" % [tt[0], tt[2]]
+        bid=tt[0]
+        last = BitfinexDB.get_last_order(v1name).first
+
+        diff=100
+        if last
+          diff = bid/last[:price]*100
+        end
+        mname = "#{symb}(#{sid})".ljust(13,' ')
+
+        out<< "[bitfinex] #{mname} ask %0.8f bid %0.8f    diff %0.1f" % [ tt[2], tt[0], diff ]
     end
-end
 
-def get_wallet
-
-client = Bitfinex::Client.new
-p ww = client.wallets
-BitfinexDB.save_wallet(ww)
+    p "**********Bitfinex*************"
+    puts out    
+    p "******************************"
 
 end
+

@@ -35,10 +35,14 @@ module BG
         if key
           #post_data = params.merge({nonce: nonce})
           post_data = params.merge({nonce: nonce})
-          p encode_data = URI.encode_www_form(post_data)
+          encode_data = URI.encode_www_form(post_data)
+
           req.headers['KEY'] = key
-          req.headers['SIGNATURE'] = signature(url, encode_data)
+          req.headers['SIGNATURE'] = signature(encode_data)
+          
           req.body = post_data
+          #params.each { |k,v| req.params[k] = v }
+
         end
       end
       
@@ -51,8 +55,8 @@ module BG
 
     private
 
-    def signature(url, data)
-      OpenSSL::HMAC.hexdigest('sha512', secret, data)
+    def signature(payload)
+      OpenSSL::HMAC.hexdigest('sha512', secret, payload)
     end
 
     def connection

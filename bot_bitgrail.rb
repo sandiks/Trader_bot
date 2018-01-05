@@ -57,16 +57,21 @@ class BGBot
       amount += ord[:amount] if ord[:type]=='buy' 
     end  
     
-    orders
+    if orders.size==0
+      hist_orders.first
+    else
+      orders.first
+    end
   end
 
-  def update_bitgrail_tickers
+  def update_bitgrail_tickers(need_save=false)
       
-      symbols = ["BTC-XRB","BTC-CFT"]
+      symbols = ["BTC-CFT", "BTC-XRB", "BTC-DOGE"]
       #symbols = ["BTC-CFT"]
       #symbols = ["BTC-XRB"]
       
       #p "---bitgrail tickers #{symbols}"
+      out = []
 
       symbols.each do |symb|
 
@@ -76,36 +81,42 @@ class BGBot
           ask=BigDecimal.new(ask)
 
           last_trades=BTG_DB[:hst_trades].filter(market:symb).reverse_order(:date).limit(4).all
-          last_trade = find_last_hist_order_not_sold(last_trades).first
+          last_trade = find_last_hist_order_not_sold(last_trades)
           
 
           BG::Util.save_to_ticks(symb, bid, ask)
-          #BG::Util.save_to_rates(symb, bid, ask)
+          BG::Util.save_to_rates(symb, bid, ask) if need_save
           #next unless last_trade
 
-          diff=100
+          diff_bid=100
+          diff_ask=100
           tid=0
 
           if last_trade
-            diff = bid/last_trade[:price]*100 
+            diff_bid = bid/last_trade[:price]*100 
+            diff_ask = ask/last_trade[:price]*100 
             tid=last_trade[:tid]
           end
 
-          p "[bitgrail] #{symb} BID %0.8f  ASK %0.8f diff %0.1f trade:#{tid}" % [bid,ask,diff]
+          out<< "--- #{symb.ljust(10,' ')} ASK %0.8f  BID %0.8f diff [%0.1f %0.1f] trade:#{tid}" % [ ask, bid, diff_bid, diff_ask]
           
-          if diff<90
-            play_sound(2)
-          end
 
-          if  diff>110
+          need_sound = (symb=="BTC-DOGE" && (ask<0.00000062 || bid>=0.00000073)) || 
+          (symb=="BTC-CFT" && (ask<0.00001600 || bid>=0.00001900) )
+          
+          if  need_sound
             play_sound 
-            p "--sell order #{symb}"
+            #p "--sell order #{symb}"
             #sell_order(symb,last_trade[:amount],bid)
             #sleep 1
             #last_trades
           end
 
+          sleep(1)
       end
+      p "**********BitGrail*************"
+      puts out
+
   end
 
   #p form_data = URI.encode_www_form({KEY: auth[:key], nonce: Time.now.to_i * 1000 })
@@ -154,19 +165,21 @@ end
 
 def test
   bot = BGBot.new
-  #bot.update_bitgrail_tickers
+  bot.update_bitgrail_tickers
   curr="BTC-XRB"
   quant=2
 
   ask= BG::Util.get_all_bid_ask[curr][1]
+  ask = 0.00115995
+  
   p '%0.8f' % ask
   
-  p bot.buy_order(curr, '%0.8f' % quant, '%0.8f' % ask)
+  #p bot.buy_order(curr, '%0.8f' % quant, '%0.8f' % ask)
+  #p bot.sell_order(curr, '%0.8f' % quant, '%0.8f' % ask)
   
-  # sleep 1; bot.last_trades
-  #sleep 1;  p bot.balance
+  # bot.last_trades
+  # sleep 1;  p bot.balance
   #p bot.ticker("BTC-XRB")
   #p bot.client.post('depositshistory',{coin:'ETH'})
 
 end
-test
