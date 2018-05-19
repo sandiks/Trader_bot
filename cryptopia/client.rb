@@ -71,7 +71,7 @@ end
 # print api_query("GetMarketOrders", [ 100 ] );
 
 # Private
-# print api_query("GetBalance")
+ #print api_query("GetBalance")
 
 #print api_query("GetBalance", {'CurrencyId' => 2} )
 

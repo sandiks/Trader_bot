@@ -56,13 +56,6 @@ class BitfinexDB
 
   end
 
-  def self.save_wallet(wallet) #need show open orders
-    DB[:wallets].delete
-    wallet.each do |ww|
-      DB[:wallets].insert({pid:2, type:ww[0],currency:ww[1], balance:ww[2], available:ww[4] })
-    end
-  end   
-
   def self.get_last_order(symb) #need show open orders
     last = DB[:mytrades].filter(fee_currency:symb.sub('ETH','')).reverse_order(:timestamp).limit(1).all
   end

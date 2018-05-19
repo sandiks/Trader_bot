@@ -8,9 +8,9 @@ require_relative 'cryptopia/util'
 Dotenv.load('.env')
 
 
-class CRPBot
+class CryptopiaBot
 
-  BTG_DB = Sequel.connect(adapter: 'mysql2', host: 'localhost', database: 'bitgrail', user: 'root')
+  DB = Sequel.connect(adapter: 'mysql2', host: 'localhost', database: 'bitgrail', user: 'root')
 
   attr_accessor :client
 
@@ -32,43 +32,153 @@ class CRPBot
   end
 
 
-  def self.update_cryptopia_tickers(markets,need_save=false)
+  def self.alarm_market
       
-      #"CFT/BTC" 5141
-      
-      #p "---bitgrail tickers #{symbols}"
-      
+      wallet_pairs = Cryptopia::Util.get_wallets_curr
+
+      pairs = Cryptopia::Util.fetch_markets_and_alarm_20_PERCENT(wallet_pairs)
+
       out=[]
-      mnames= [[5141,"CFT/BTC"]].to_h
+      mnames= Cryptopia::Util.get_markets_from_db
+      mark_prices = Cryptopia::Util.get_mark_prices
 
-      markets.each do |symb|
-          data = Cryptopia::Util.get_market(symb)
-          bid,ask = [data['BidPrice'],data['AskPrice']]
+      pairs.each do |mid , data|
 
-          Cryptopia::Util.save_to_ticks(symb, bid, ask)
-          #next unless last_trade
+          bid,ask = data[1]
+          bid1,ask1 = data[0]
 
-          out<< "-- #{mnames[symb]}  BID: %0.8f  ASK: %0.8f" % [bid,ask]
-          diff = bid/0.00000700*100
+          mname = mnames[mid.to_i]
+          mname = mname.ljust(15,' ') if mname
+          diff_bid,diff_ask = 100,100
+          
 
-          if diff<85
-            #play_sound(1)
+          ## wallet alarm
+          if wallet_pairs.include?(mid)
+            curr = mname.sub('/BTC','').strip
+            mark_price = mark_prices[curr]||0
+
+            diff_bid=100
+            if mark_price && mark_price!=0
+             diff_bid=bid/mark_price*100
+            end
+
+            mark = ""  
+            if diff_bid>110    
+              play_sound
+              mark = "!!! RISE BID WALLET"  
+            end  
+            
+            if mark!=""
+              out<< "-- #{mname} ASK: %0.8f BID: %0.8f diff ask_bid [%0.1f %0.1f]  #{mark}" % [ ask, bid, diff_ask, diff_bid ]
+            end
           end
 
-          if  diff>120
-            play_sound(1) 
-            p "--sell order #{symb}"
-            #sell_order(symb,last_trade[:amount],bid)
-            #sleep 1
-            #last_trades
-          end
+          if data[0]
+            diff_bid=bid/bid1*100
+            diff_ask=ask/ask1*100
 
-          sleep(1)
+            mark = ""  
+            if diff_ask>110     
+              mark = "!!! RISE ASK 110"  
+              Cryptopia::Util.save_rising_pair(mid, bid, ask, diff_bid, diff_ask)
+
+            elsif diff_bid>105    
+              mark = "!!! RISE BID 105"  
+              Cryptopia::Util.save_rising_pair(mid, bid, ask, diff_bid, diff_ask)
+
+            elsif diff_ask<95
+              mark = "!!! FALL ASK 95"  
+              Cryptopia::Util.save_rising_pair(mid, bid, ask, diff_bid, diff_ask)
+
+            end  
+            
+            if mark!=""
+              out<< "-- #{mname} ASK: %0.8f BID: %0.8f diff ask_bid [%0.1f %0.1f]  #{mark}" % [ ask, bid, diff_ask, diff_bid ]
+            end
+          end
       end
       p "**********Cryptopia*************"
       puts out      
   end
 
+  def self.update_tickers(need_save=false)
+      
+      #p Cryptopia::Util.get_markets(markets_list)
+
+      markets_list = Cryptopia::Util.get_wallets_curr
+
+      out=[]
+
+      mnames= Cryptopia::Util.get_markets_from_db
+      mark_prices = Cryptopia::Util.get_mark_prices
+      #p mark_prices.keys.map
+
+      markets_list.each do |market_id|
+
+          data = Cryptopia::Util.get_market(market_id)
+          bid,ask = [data['BidPrice'],data['AskPrice']]
+
+          Cryptopia::Util.save_to_ticks(market_id, bid, ask)
+          #next unless last_trade
+          mname = mnames[market_id].ljust(15,' ')
+          curr = mname.sub('/BTC','').strip
+
+ 
+          mark_price = mark_prices[curr]||0
+
+          #p "#{curr} last: #{'%0.8f' % mark_price}"
+          diff_bid=100
+          diff_ask=100
+          if mark_price && mark_price!=0
+           diff_bid=bid/mark_price*100
+           diff_ask=ask/mark_price*100
+          end
+
+          mark = ""  
+          if diff_bid>110    
+            play_sound
+            mark = "!!! RISE "  
+
+          elsif diff_ask<90
+            play_sound(2)
+            mark = "!!! FALL "  
+          end  
+
+          out<< "-- #{mname} ASK: %0.8f BID: %0.8f diff ask_bid [%0.1f %0.1f]  #{mark}" % [ ask, bid, diff_ask, diff_bid ]
+        
+          sleep 0.5
+      end
+      p "**********Cryptopia*************"
+      puts out      
+  end
+
+  def self.update_simul_pairs
+    simul = Cryptopia::Util.get_simul_pairs
+
+    simul.each do |market_id|
+      begin
+        tt = Cryptopia::Util.get_market(market_id)  
+        next unless tt
+
+        bid,ask=tt['BidPrice'],tt['AskPrice'] #BigDecimal.new(tt['BidPrice'])
+
+        Cryptopia::Util.save_to_ticks(market_id,bid,ask)
+      rescue =>ex
+        p "#{ex.message}" 
+      end
+      sleep 0.5
+    end
+  end
+
+  def self.alarm_all_rates
+    
+    Cryptopia::Util.fetch_markets_and_save_to_rates
+  end  
+  
+  def self.save_all_rates
+    
+    Cryptopia::Util.fetch_markets_and_save_to_rates
+  end  
+
 end
 
-#CRPBot.update_cryptopia_tickers([5141])

@@ -15,12 +15,9 @@ module CoinExchange
       DB[:my_ticks].to_hash(:symb,[:BID,:ASK])
     end
     
-    def self.save_tick_to_db(symb_id, tt)
-
-      DB[:my_ticks].filter(symb:symb_id).delete
-
-      rr = {symb:symb_id, BID:tt[0],BID_SIZE:tt[1],ASK:tt[2],ASK_SIZE:tt[3],DAILY_CHANGE:tt[4], time:date_now(0)}
-      DB[:my_ticks].insert(rr)
+    def self.save_to_ticks(mid, bid, ask)
+      rr = { bid: bid, ask: ask }
+      DB[:my_ticks].filter(name: mid).update(rr)
     end
 
     def self.save_to_rates(mid, bid, ask)
@@ -39,9 +36,10 @@ module CoinExchange
       end
     end
 
-    def self.get_markets #need show open orders  
-      DB[:markets].to_hash(:MarketID,:MarketAssetName)
+    def self.marketID_code #need show open orders  
+      DB[:markets].to_hash(:MarketID,[:MarketAssetCode,:BaseCurrencyCode])
     end
+
 
     def self.save_currencies(data) #need show open orders
       DB.transaction do
@@ -77,7 +75,22 @@ module CoinExchange
       end
     end   
 
- 
+    def self.get_wallets_curr(base="BTC") #need show open orders
+      codes = DB[:wallets].filter(active:1).select_map(:currency)
+      DB[:markets].filter(MarketAssetCode: codes , BaseCurrencyCode:base).select_map(:MarketID)  #to_hash(:MarketAssetCode,:MarketID)
+    end   
+    
+    def self.get_mark_prices  
+      #DB[:buy_mark_prices].to_hash(:mid,:price)
+      wallet = DB[:wallets].filter(active: 1).to_hash(:currency,:last_price)
+      simul = DB[:simul_markets].filter(active: 1).to_hash(:pair,:ppu)
+      wallet.merge(simul)
+    end
+        
+    def self.get_simul_pairs
+      pairs = DB[:simul_markets].filter(active: 1).select_map(:mid)
+    end  
+
   end
 end
 

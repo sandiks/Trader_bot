@@ -72,7 +72,7 @@ def update_bitfinex_tickers
 
     p "**********Bitfinex*************"
     puts out    
-    p "******************************"
 
 end
 
+update_bitfinex_tickers

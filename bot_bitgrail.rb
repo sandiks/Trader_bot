@@ -101,8 +101,7 @@ class BGBot
           out<< "--- #{symb.ljust(10,' ')} ASK %0.8f  BID %0.8f diff [%0.1f %0.1f] trade:#{tid}" % [ ask, bid, diff_bid, diff_ask]
           
 
-          need_sound = (symb=="BTC-DOGE" && (ask<0.00000062 || bid>=0.00000073)) || 
-          (symb=="BTC-CFT" && (ask<0.00001600 || bid>=0.00001900) )
+          need_sound =  false#( symb=="BTC-DOGE" && (ask<0.00000062 || bid>=0.00000090) )  
           
           if  need_sound
             play_sound 
